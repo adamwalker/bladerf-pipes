@@ -52,13 +52,12 @@ printInfo dev = do
 
     print info
 
-bladeRFPipe :: Int
+bladeRFPipe :: DeviceHandle
+            -> Int
             -> Int
             -> Int 
             -> IO (Producer (VS.Vector CShort) IO ())
-bladeRFPipe frequency sampleRate bandwidth = do
-    dev <- openBladeRF
-
+bladeRFPipe dev frequency sampleRate bandwidth = do
     printInfo dev
 
     ret1             <- bladeRFSetFrequency  dev MODULE_RX frequency
@@ -109,9 +108,8 @@ bladeRFSink dev frequency sampleRate bandwidth = do
     print actualSampleRate
     print actualBandWidth
 
-    --print ret2
-    --print ret3
-    --print ret4
+    print ret2
+    print ret3
 
     ret <- bladeRFSyncConfig dev MODULE_TX FORMAT_SC16_Q11 16 8192 8 3500
     print ret
