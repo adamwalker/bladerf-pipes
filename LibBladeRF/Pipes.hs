@@ -52,12 +52,12 @@ printInfo dev = do
 
     print info
 
-bladeRFPipe :: DeviceHandle
-            -> Int
-            -> Int
-            -> Int 
-            -> IO (Producer (VS.Vector CShort) IO ())
-bladeRFPipe dev frequency sampleRate bandwidth = do
+bladeRFSource :: DeviceHandle
+              -> Int
+              -> Int
+              -> Int 
+              -> IO (Producer (VS.Vector CShort) IO ())
+bladeRFSource dev frequency sampleRate bandwidth = do
     printInfo dev
 
     ret1             <- bladeRFSetFrequency  dev MODULE_RX frequency
