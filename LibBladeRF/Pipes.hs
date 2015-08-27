@@ -34,13 +34,13 @@ data BladeRFInfo = BladeRFInfo {
 toVector :: ByteString -> VS.Vector CShort
 toVector (PS p o l) = VS.unsafeFromForeignPtr (castForeignPtr p) o (l `quot` 2)
 
-bladeRFPipe :: Int
-            -> Int
-            -> Int 
-            -> IO (Producer (VS.Vector CShort) IO ())
-bladeRFPipe frequency sampleRate bandwidth = do
-    dev <- openBladeRF
+fromVector :: VS.Vector CShort -> ByteString
+fromVector v = fromForeignPtr (castForeignPtr fp) 0 len 
+    where
+    (fp, len) = unsafeToForeignPtr0 v
 
+printInfo :: DeviceHandle -> IO ()
+printInfo dev = do
     info <-  BladeRFInfo 
          <$> bladeRFLibVersion
          <*> bladeRFFwVersion   dev
@@ -51,6 +51,15 @@ bladeRFPipe frequency sampleRate bandwidth = do
          <*> bladeRFGetFPGASize dev
 
     print info
+
+bladeRFPipe :: Int
+            -> Int
+            -> Int 
+            -> IO (Producer (VS.Vector CShort) IO ())
+bladeRFPipe frequency sampleRate bandwidth = do
+    dev <- openBladeRF
+
+    printInfo dev
 
     ret1             <- bladeRFSetFrequency  dev MODULE_RX frequency
     actualSampleRate <- bladeRFSetSampleRate dev MODULE_RX sampleRate
@@ -80,4 +89,40 @@ bladeRFPipe frequency sampleRate bandwidth = do
             Right ret  -> do
                 yield $ toVector $ fst ret
             Left err -> lift $ print err
+
+bladeRFSink :: DeviceHandle
+            -> Int
+            -> Int
+            -> Int
+            -> IO (Consumer (VS.Vector CShort) IO ())
+bladeRFSink dev frequency sampleRate bandwidth = do
+    printInfo dev
+
+    ret1             <- bladeRFSetFrequency  dev MODULE_TX frequency
+    actualSampleRate <- bladeRFSetSampleRate dev MODULE_TX sampleRate
+    actualBandWidth  <- bladeRFSetBandwidth  dev MODULE_TX bandwidth
+
+    ret2 <- bladeRFSetTXVGA1  dev (-10)
+    ret3 <- bladeRFSetTXVGA2  dev 20
+
+    print ret1
+    print actualSampleRate
+    print actualBandWidth
+
+    --print ret2
+    --print ret3
+    --print ret4
+
+    ret <- bladeRFSyncConfig dev MODULE_TX FORMAT_SC16_Q11 16 8192 8 3500
+    print ret
+
+    ret <- bladeRFEnableModule dev MODULE_TX True
+    print ret
+
+    return $ forever $ do
+        dat <- await
+        ret <- lift $ bladeRFSyncTx dev (fromVector dat) Nothing 5000
+        case ret of
+            Right ret -> return ()
+            Left  err -> lift $ print err
 
