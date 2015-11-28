@@ -39,18 +39,15 @@ fromVector v = fromForeignPtr (castForeignPtr fp) 0 len
     where
     (fp, len) = unsafeToForeignPtr0 v
 
-printInfo :: DeviceHandle -> IO ()
-printInfo dev = do
-    info <-  BladeRFInfo 
-         <$> bladeRFLibVersion
-         <*> bladeRFFwVersion   dev
-         <*> bladeRFFPGAVersion dev
-         <*> bladeRFDeviceSpeed dev
-         <*> bladeRFGetDevInfo  dev
-         <*> bladeRFGetSerial   dev
-         <*> bladeRFGetFPGASize dev
-
-    print info
+getInfo :: DeviceHandle -> IO BladeRFInfo
+getInfo dev = BladeRFInfo 
+    <$> bladeRFLibVersion
+    <*> bladeRFFwVersion   dev
+    <*> bladeRFFPGAVersion dev
+    <*> bladeRFDeviceSpeed dev
+    <*> bladeRFGetDevInfo  dev
+    <*> bladeRFGetSerial   dev
+    <*> bladeRFGetFPGASize dev
 
 bladeRFSource :: DeviceHandle
               -> Int
@@ -58,7 +55,8 @@ bladeRFSource :: DeviceHandle
               -> Int 
               -> IO (Producer (VS.Vector CShort) IO ())
 bladeRFSource dev frequency sampleRate bandwidth = do
-    printInfo dev
+    info <- getInfo dev
+    print info
 
     ret1             <- bladeRFSetFrequency  dev MODULE_RX frequency
     actualSampleRate <- bladeRFSetSampleRate dev MODULE_RX sampleRate
@@ -82,6 +80,8 @@ bladeRFSource dev frequency sampleRate bandwidth = do
     ret <- bladeRFEnableModule dev MODULE_RX True
     print ret
 
+    print "starting"
+
     return $ forever $ do
         ret <- lift $ bladeRFSyncRx dev 10000 5000
         case ret of
@@ -95,7 +95,8 @@ bladeRFSink :: DeviceHandle
             -> Int
             -> IO (Consumer (VS.Vector CShort) IO ())
 bladeRFSink dev frequency sampleRate bandwidth = do
-    printInfo dev
+    info <- getInfo dev
+    print info
 
     ret1             <- bladeRFSetFrequency  dev MODULE_TX frequency
     actualSampleRate <- bladeRFSetSampleRate dev MODULE_TX sampleRate
