@@ -3,14 +3,13 @@ module LibBladeRF.Pipes where
 
 import Control.Monad
 import Foreign.C.Types
-
 import Foreign.ForeignPtr
-
-import Data.ByteString
+import Data.ByteString hiding (putStrLn)
 import Data.ByteString.Internal
+import qualified Data.Vector.Storable as VS
 
-import Data.Vector.Storable as VS
-
+import Control.Monad.Trans.Either
+import Data.Either.Combinators
 import Pipes
 import qualified Pipes.Prelude as P
 
@@ -38,7 +37,7 @@ toVector (PS p o l) = VS.unsafeFromForeignPtr (castForeignPtr p) o (l `quot` 2)
 fromVector :: VS.Vector CShort -> ByteString
 fromVector v = fromForeignPtr (castForeignPtr fp) 0 len 
     where
-    (fp, len) = unsafeToForeignPtr0 v
+    (fp, len) = VS.unsafeToForeignPtr0 v
 
 getInfo :: DeviceHandle -> IO BladeRFInfo
 getInfo dev = BladeRFInfo 
@@ -61,37 +60,32 @@ data BladeRFRxConfig = BladeRFRxConfig {
 
 bladeRFSource :: DeviceHandle
               -> BladeRFRxConfig
-              -> IO (Producer (VS.Vector CShort) IO ())
+              -> EitherT String IO (Producer (VS.Vector CShort) IO ())
 bladeRFSource dev BladeRFRxConfig{..} = do
-    info <- getInfo dev
-    print info
 
-    ret1             <- bladeRFSetFrequency  dev MODULE_RX frequency
-    actualSampleRate <- bladeRFSetSampleRate dev MODULE_RX sampleRate
-    actualBandWidth  <- bladeRFSetBandwidth  dev MODULE_RX bandwidth
+    lift $ do
+        info <- getInfo dev
+        print info
 
-    ret2 <- bladeRFSetRXVGA1  dev rxVGA1
-    ret3 <- bladeRFSetRXVGA2  dev rxVGA2
-    ret4 <- bladeRFSetLNAGain dev lnaGain
+    EitherT $ mapLeft show <$> bladeRFSetFrequency dev MODULE_RX frequency
+    actualSampleRate <- lift $ bladeRFSetSampleRate dev MODULE_RX sampleRate
+    actualBandWidth  <- lift $ bladeRFSetBandwidth  dev MODULE_RX bandwidth
 
-    print ret1
-    print actualSampleRate
-    print actualBandWidth
+    lift $ do
+        putStrLn $ "Set sample rate to: " ++ show actualSampleRate
+        putStrLn $ "Set bandwidth to: " ++ show actualBandWidth
 
-    print ret2
-    print ret3
-    print ret4
+    EitherT $ mapLeft show <$> bladeRFSetRXVGA1  dev rxVGA1
+    EitherT $ mapLeft show <$> bladeRFSetRXVGA2  dev rxVGA2
+    EitherT $ mapLeft show <$> bladeRFSetLNAGain dev lnaGain
 
-    ret <- bladeRFSyncConfig dev MODULE_RX FORMAT_SC16_Q11 16 8192 8 3500
-    print ret
+    EitherT $ mapLeft show <$> bladeRFSyncConfig dev MODULE_RX FORMAT_SC16_Q11 16 8192 8 3500
+    EitherT $ mapLeft show <$> bladeRFEnableModule dev MODULE_RX True
 
-    ret <- bladeRFEnableModule dev MODULE_RX True
-    print ret
-
-    print "Starting BladeRF RX"
+    lift $ print "Starting BladeRF RX"
 
     return $ forever $ do
-        ret <- lift $ bladeRFSyncRx dev 10000 5000
+        ret <- lift $ bladeRFSyncRx dev 8192 5000
         case ret of
             Right ret  -> do
                 yield $ toVector $ fst ret
