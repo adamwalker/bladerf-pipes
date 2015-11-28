@@ -50,12 +50,12 @@ getInfo dev = BladeRFInfo
     <*> bladeRFGetFPGASize dev
 
 data BladeRFRxConfig = BladeRFRxConfig {
-    frequency  :: Int,
-    sampleRate :: Int,
-    bandwidth  :: Int,
-    rxVGA1     :: Int,
-    rxVGA2     :: Int,
-    lnaGain    :: BladeRFLNAGain
+    rxFrequency  :: Int,
+    rxSampleRate :: Int,
+    rxBandwidth  :: Int,
+    rxVGA1       :: Int,
+    rxVGA2       :: Int,
+    lnaGain      :: BladeRFLNAGain
 } 
 
 bladeRFSource :: DeviceHandle
@@ -67,9 +67,9 @@ bladeRFSource dev BladeRFRxConfig{..} = do
         info <- getInfo dev
         print info
 
-    EitherT $ mapLeft show <$> bladeRFSetFrequency dev MODULE_RX frequency
-    actualSampleRate <- lift $ bladeRFSetSampleRate dev MODULE_RX sampleRate
-    actualBandWidth  <- lift $ bladeRFSetBandwidth  dev MODULE_RX bandwidth
+    EitherT $ mapLeft show <$> bladeRFSetFrequency dev MODULE_RX rxFrequency
+    actualSampleRate <- lift $ bladeRFSetSampleRate dev MODULE_RX rxSampleRate
+    actualBandWidth  <- lift $ bladeRFSetBandwidth  dev MODULE_RX rxBandwidth
 
     lift $ do
         putStrLn $ "Set sample rate to: " ++ show actualSampleRate
@@ -91,27 +91,33 @@ bladeRFSource dev BladeRFRxConfig{..} = do
                 yield $ toVector $ fst ret
             Left err -> lift $ print err
 
+data BladeRFTxConfig = BladeRFTxConfig {
+    txFrequency  :: Int,
+    txSampleRate :: Int,
+    txBandwidth  :: Int,
+    txVGA1       :: Int,
+    txVGA2       :: Int
+} 
+
 bladeRFSink :: DeviceHandle
-            -> Int
-            -> Int
-            -> Int
+            -> BladeRFTxConfig
             -> EitherT String IO (Consumer (VS.Vector CShort) IO ())
-bladeRFSink dev frequency sampleRate bandwidth = do
+bladeRFSink dev BladeRFTxConfig{..} = do
 
     lift $ do
         info <- getInfo dev
         print info
 
-    EitherT $ mapLeft show <$> bladeRFSetFrequency  dev MODULE_TX frequency
-    actualSampleRate <- lift $ bladeRFSetSampleRate dev MODULE_TX sampleRate
-    actualBandWidth  <- lift $ bladeRFSetBandwidth  dev MODULE_TX bandwidth
+    EitherT $ mapLeft show <$> bladeRFSetFrequency  dev MODULE_TX txFrequency
+    actualSampleRate <- lift $ bladeRFSetSampleRate dev MODULE_TX txSampleRate
+    actualBandWidth  <- lift $ bladeRFSetBandwidth  dev MODULE_TX txBandwidth
 
     lift $ do
         putStrLn $ "Set sample rate to: " ++ show actualSampleRate
         putStrLn $ "Set bandwidth to: " ++ show actualBandWidth
 
-    EitherT $ mapLeft show <$> bladeRFSetTXVGA1  dev (-10)
-    EitherT $ mapLeft show <$> bladeRFSetTXVGA2  dev 20
+    EitherT $ mapLeft show <$> bladeRFSetTXVGA1  dev txVGA1
+    EitherT $ mapLeft show <$> bladeRFSetTXVGA2  dev txVGA2
 
     EitherT $ mapLeft show <$> bladeRFSyncConfig dev MODULE_TX FORMAT_SC16_Q11 16 8192 8 3500
     EitherT $ mapLeft show <$> bladeRFEnableModule dev MODULE_TX True
