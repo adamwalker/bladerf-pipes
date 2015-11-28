@@ -95,30 +95,26 @@ bladeRFSink :: DeviceHandle
             -> Int
             -> Int
             -> Int
-            -> IO (Consumer (VS.Vector CShort) IO ())
+            -> EitherT String IO (Consumer (VS.Vector CShort) IO ())
 bladeRFSink dev frequency sampleRate bandwidth = do
-    info <- getInfo dev
-    print info
 
-    ret1             <- bladeRFSetFrequency  dev MODULE_TX frequency
-    actualSampleRate <- bladeRFSetSampleRate dev MODULE_TX sampleRate
-    actualBandWidth  <- bladeRFSetBandwidth  dev MODULE_TX bandwidth
+    lift $ do
+        info <- getInfo dev
+        print info
 
-    ret2 <- bladeRFSetTXVGA1  dev (-10)
-    ret3 <- bladeRFSetTXVGA2  dev 20
+    EitherT $ mapLeft show <$> bladeRFSetFrequency  dev MODULE_TX frequency
+    actualSampleRate <- lift $ bladeRFSetSampleRate dev MODULE_TX sampleRate
+    actualBandWidth  <- lift $ bladeRFSetBandwidth  dev MODULE_TX bandwidth
 
-    print ret1
-    print actualSampleRate
-    print actualBandWidth
+    lift $ do
+        putStrLn $ "Set sample rate to: " ++ show actualSampleRate
+        putStrLn $ "Set bandwidth to: " ++ show actualBandWidth
 
-    print ret2
-    print ret3
+    EitherT $ mapLeft show <$> bladeRFSetTXVGA1  dev (-10)
+    EitherT $ mapLeft show <$> bladeRFSetTXVGA2  dev 20
 
-    ret <- bladeRFSyncConfig dev MODULE_TX FORMAT_SC16_Q11 16 8192 8 3500
-    print ret
-
-    ret <- bladeRFEnableModule dev MODULE_TX True
-    print ret
+    EitherT $ mapLeft show <$> bladeRFSyncConfig dev MODULE_TX FORMAT_SC16_Q11 16 8192 8 3500
+    EitherT $ mapLeft show <$> bladeRFEnableModule dev MODULE_TX True
 
     return $ forever $ do
         dat <- await
