@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module LibBladeRF.Pipes where
 
 import Control.Monad
@@ -49,12 +50,19 @@ getInfo dev = BladeRFInfo
     <*> bladeRFGetSerial   dev
     <*> bladeRFGetFPGASize dev
 
+data BladeRFRxConfig = BladeRFRxConfig {
+    frequency  :: Int,
+    sampleRate :: Int,
+    bandwidth  :: Int,
+    rxVGA1     :: Int,
+    rxVGA2     :: Int,
+    lnaGain    :: BladeRFLNAGain
+} 
+
 bladeRFSource :: DeviceHandle
-              -> Int
-              -> Int
-              -> Int 
+              -> BladeRFRxConfig
               -> IO (Producer (VS.Vector CShort) IO ())
-bladeRFSource dev frequency sampleRate bandwidth = do
+bladeRFSource dev BladeRFRxConfig{..} = do
     info <- getInfo dev
     print info
 
@@ -62,9 +70,9 @@ bladeRFSource dev frequency sampleRate bandwidth = do
     actualSampleRate <- bladeRFSetSampleRate dev MODULE_RX sampleRate
     actualBandWidth  <- bladeRFSetBandwidth  dev MODULE_RX bandwidth
 
-    ret2 <- bladeRFSetRXVGA1  dev 30
-    ret3 <- bladeRFSetRXVGA2  dev 3
-    ret4 <- bladeRFSetLNAGain dev LNA_GAIN_MAX
+    ret2 <- bladeRFSetRXVGA1  dev rxVGA1
+    ret3 <- bladeRFSetRXVGA2  dev rxVGA2
+    ret4 <- bladeRFSetLNAGain dev lnaGain
 
     print ret1
     print actualSampleRate
@@ -80,7 +88,7 @@ bladeRFSource dev frequency sampleRate bandwidth = do
     ret <- bladeRFEnableModule dev MODULE_RX True
     print ret
 
-    print "starting"
+    print "Starting BladeRF RX"
 
     return $ forever $ do
         ret <- lift $ bladeRFSyncRx dev 10000 5000
